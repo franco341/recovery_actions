@@ -1,4 +1,4 @@
-name: Build TWRP
+name: Build TWRP for Exynos 2100
 
 on:
   workflow_dispatch:
