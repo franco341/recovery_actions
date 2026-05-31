@@ -63,7 +63,58 @@ jobs:
         # Schimba numele in toate fisierele de limba
         find bootable/recovery -name "*.xml" -exec sed -i 's/Team Win Recovery Project/FKZ Recovery/g' {} \; 2>/dev/null || true
         find bootable/recovery/gui/theme -name "*.xml" -exec sed -i 's/>TWRP</>FKZ Recovery</g' {} \; 2>/dev/null || true
-
         # Schimba culorile la rosu/negru
         find bootable/recovery/gui/theme -name "ui.xml" | while read f; do
-          sed -i 's/#0090CA/#CC0000/g' "
+          sed -i 's/#0090CA/#CC0000/g' "$f"
+          sed -i 's/#0090ca/#CC0000/g' "$f"
+          sed -i 's/#1A1A1A/#0D0D0D/g' "$f"
+          sed -i 's/#1a1a1a/#0D0D0D/g' "$f"
+          sed -i 's/#0090CA30/#CC000030/g' "$f"
+          sed -i 's/#0090CA80/#CC000080/g' "$f"
+          echo "Themed: $f"
+        done
+        # Schimba Android Artisan din device tree
+        find device/samsung/exynos990 -type f | xargs grep -rl "Android Artisan\|android artisan" 2>/dev/null | while read f; do
+          sed -i 's/Android Artisan v2/FKZ Recovery/g' "$f"
+          sed -i 's/Android Artisan/FKZ Recovery/g' "$f"
+          sed -i 's/android artisan/FKZ Recovery/g' "$f"
+        done
+      working-directory: ${{ steps.pwd.outputs.workspace-folder }}
+    - name: Set Swap Space
+      uses: pierotofy/set-swap-space@master
+      with:
+        swap-size-gb: 12
+    - name: Building recovery
+      run: |
+        export ALLOW_MISSING_DEPENDENCIES=true
+        source build/envsetup.sh
+        lunch twrp_${{ matrix.target }}-eng && make clean && mka recoveryimage -j$(nproc --all)
+      working-directory: ${{ steps.pwd.outputs.workspace-folder }}
+    - name: Set Date Variables
+      run: |
+        echo "DATE_SHORT=$(date +%Y%m%d)" >> $GITHUB_OUTPUT
+        echo "DATE_TAG=$(date +%Y%m%d%H%M%S)" >> $GITHUB_OUTPUT
+        echo "DATE_LONG=$(date +%Y%m%d-%H%M)" >> $GITHUB_OUTPUT
+      id: date
+    - name: Archive the files
+      run: |
+        ls -a ${{ steps.pwd.outputs.workspace-folder }}/out/target/product/ && echo
+        ls -a ${{ steps.pwd.outputs.workspace-folder }}/out/target/product/${{ matrix.target }}/ && echo
+        cd out/target/product/${{ matrix.target }}
+        mv recovery.img FKZ-Recovery-${{ matrix.target }}.img
+      working-directory: ${{ steps.pwd.outputs.workspace-folder }}
+    - name: Upload to Release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: | 
+          workspace/out/target/product/${{ matrix.target }}/FKZ-Recovery-${{ matrix.target }}.img
+        name: FKZ-Recovery-${{ matrix.target }}-${{ steps.date.outputs.DATE_SHORT }}
+        tag_name: ${{ steps.date.outputs.DATE_TAG }}
+        body: |
+          FKZ Recovery
+          Manifest: twrp-12.1
+          Device: ${{ matrix.target }}
+          Target: recovery
+          Builder: FranckkZeul
+      env:
+        GITHUB_TOKEN: ${{ secrets.TOKEN }}
